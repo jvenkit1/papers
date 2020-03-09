@@ -2,7 +2,7 @@
 
 A Scalable Concurrent malloc implementation for FreeBSD -- Jemalloc
 
-# Introduction
+# Introduction:
 
 SMP systems have advanced to a state where malloc has become a scalability bottleneck for multi-threaded applications
 
@@ -49,3 +49,22 @@ An interesting method on how this can be achieved is to have multiple allocator 
 Cache sloshing: quick migration of cached data among processors during the manipulation of allocator data structures. <br/>
 
 Jemalloc uses multiple arenas but combined with a mechanism different to hashing for assignment of threads to these arenas. <br/>
+
+# Algorithm:
+
+Each application is configured at run time to have a fixed number of arenas. Thus threads are assigned to an arena based on a round robin scheme. This technique reduces contention among the different threads while requesting memory. The number of arenas depends on the number of processors. <br/>
+
+The general rule of thumb is to have at least 4 times as many arenas as there are processors in a multi processor environment, while there is only 1 arena in a single processor environment. <br/>
+Thread local storage is essential in this round robin implementation, since each thread's arena assignment needs to be stored somewhere.
+
+* Memory Management:
+
+Memory is requested from kernel via sbrk or mmap. All this memory is managed in multiples of chunk size. This means the base address is a multiple of the chunk size, which facilitates constant time calculation of a chunk associated with an allocation.<br/>
+Chunks are managed by particular arenas and the chunk size is ***2 Mb*** by default.<br/>
+
+Allocation size classes are of 3 categories - small, large and huge. Each allocation request is rounded up to the nearest size class boundary. Huge allocations are larger than half of a chunk and are directly backed by dedicated chunks(i.e entire chunk for an allocation).<br/>
+Metadata about huge allocations are stored in a single red-black tree.<br/>
+
+For small and large allocations, chunks are carved into page runs using the **binary buddy algorithm**. Blocks are repeatedly split into smaller sized blocks to cater to a allocation request, but can only be coalesced in ways that reverse the splitting process.
+
+Small allocations fall into 3 subcategories - tiny, quantum-spaced and sub-page. This particular distribution of the splits reduces average internal fragmentation.
